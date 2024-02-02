@@ -1,16 +1,11 @@
-# encriptar
+# BTC Hash
 
-A new Flutter project.
+Este Aplicativo tem como único propósito oferecer funcionalidades de criptografia e descriptografia de senhas relacionadas a carteiras Bitcoin ou qualquer texto.
 
-## Getting Started
+## Sobre
 
-This project is a starting point for a Flutter application.
+O aplicativo permite que você criptografe suas senhas de carteira Bitcoin para maior segurança. Oferece a funcionalidade de descriptografar carteiras Bitcoin ou qualquer texto previamente criptografadas.
 
-A few resources to get you started if this is your first Flutter project:
+Este aplicativo não requer acesso à internet para suas funcionalidades. Nenhuma informação é transmitida pela internet durante o processo de criptografia ou descriptografia.
 
-- [Lab: Write your first Flutter app](https://docs.flutter.dev/get-started/codelab)
-- [Cookbook: Useful Flutter samples](https://docs.flutter.dev/cookbook)
-
-For help getting started with Flutter development, view the
-[online documentation](https://docs.flutter.dev/), which offers tutorials,
-samples, guidance on mobile development, and a full API reference.
+Este Aplicativo é um software de código aberto, o que significa que o código-fonte do aplicativo está disponível publicamente. Encorajamos a revisão do código por parte dos usuários para garantir transparência e confiança.
