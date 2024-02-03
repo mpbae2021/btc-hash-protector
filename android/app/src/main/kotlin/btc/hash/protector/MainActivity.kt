@@ -1,4 +1,4 @@
-package com.example.encriptar
+package btc.hash.protector
 
 import io.flutter.embedding.android.FlutterActivity
 
