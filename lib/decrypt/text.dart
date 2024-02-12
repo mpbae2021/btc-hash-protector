@@ -1,7 +1,8 @@
+import 'dart:convert';
 import 'dart:io';
 
-import 'package:encriptar/service/alert.dart';
-import 'package:encriptar/service/crypto.dart';
+import 'package:app/service/alert.dart';
+import 'package:app/service/crypto.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:get/get.dart';
@@ -15,40 +16,43 @@ class DecryptText extends StatefulWidget {
 
 class _DecryptTextState extends State<DecryptText> {
   TextEditingController hash = TextEditingController();
-  TextEditingController senha = TextEditingController();
+  TextEditingController password = TextEditingController();
 
   RxString texto = ''.obs;
   final Rx<File?> file = Rx<File?>(null);
 
-  void descriptar() async {
+  void decrypt() async {
     if (hash.text == '') {
-      Alert().show('hash_vazia', 'hash_vazia_info');
+      Alert().show('empty_hash', 'empty_hash_info');
       return;
     }
-    if (senha.text == '') {
-      Alert().show('senha_vazia', 'senha_vazia_info');
+    if (password.text == '') {
+      Alert().show('empty_password', 'empty_password_info');
       return;
     }
 
     Alert().loading();
     await Future.delayed(const Duration(microseconds: 500));
 
-    String? info = await CryptoAes().aes128Decode(hash.text, senha.text);
+    Uint8List? info = await CryptoApp().decrypt(
+      password.text,
+      base64Decode(hash.text),
+    );
     Get.back();
     if (info != null) {
-      texto.value = info;
+      texto.value = utf8.decode(info);
       texto.refresh();
     } else {
       Alert().show(
-        'erro_descriptografar',
-        'erro_descriptografar_info',
+        'error_decrypt',
+        'error_decrypt_info',
       );
     }
   }
 
   copy() {
     Clipboard.setData(ClipboardData(text: texto.value));
-    Alert().snackBar('texto_copiado', 'texto_copiado_info');
+    Alert().snackBar('copied_text', 'copied_text_info');
   }
 
   @override
@@ -73,7 +77,7 @@ class _DecryptTextState extends State<DecryptText> {
                       maxLines: 4,
                       keyboardType: TextInputType.multiline,
                       decoration: InputDecoration(
-                        hintText: 'digite_hash'.tr,
+                        hintText: 'enter_hash'.tr,
                         border: InputBorder.none,
                       ),
                       onChanged: (e) => {
@@ -106,11 +110,11 @@ class _DecryptTextState extends State<DecryptText> {
                     child: Padding(
                       padding: const EdgeInsets.all(8.0),
                       child: TextField(
-                        controller: senha,
+                        controller: password,
                         maxLines: 1,
                         keyboardType: TextInputType.text,
                         decoration: InputDecoration(
-                          hintText: 'digite_senha'.tr,
+                          hintText: 'enter_password'.tr,
                           border: InputBorder.none,
                         ),
                       ),
@@ -123,8 +127,8 @@ class _DecryptTextState extends State<DecryptText> {
                 child: SizedBox(
                   width: double.infinity,
                   child: ElevatedButton(
-                    onPressed: descriptar,
-                    child: Text('descriptografar'.tr),
+                    onPressed: decrypt,
+                    child: Text('decrypt'.tr),
                   ),
                 ),
               ),
@@ -148,7 +152,7 @@ class _DecryptTextState extends State<DecryptText> {
                         padding: const EdgeInsets.all(8.0),
                         child: ElevatedButton(
                           onPressed: copy,
-                          child: Text('copiar'.tr),
+                          child: Text('copy'.tr),
                         ),
                       ),
                     ],

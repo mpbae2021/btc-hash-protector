@@ -1,7 +1,7 @@
-import 'package:encriptar/encrypt/file.dart';
-import 'package:encriptar/encrypt/text.dart';
-import 'package:encriptar/service/openlinkd.dart';
-import 'package:encriptar/service/translate.dart';
+import 'package:app/encrypt/file.dart';
+import 'package:app/encrypt/text.dart';
+import 'package:app/service/openlinkd.dart';
+import 'package:app/service/translate.dart';
 import 'package:flutter/material.dart';
 import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 
@@ -21,7 +21,7 @@ class _EncryptPagePageState extends State<EncryptPage> {
       child: Scaffold(
           appBar: AppBar(
             leading: IconButton(
-              onPressed: () => OpenLink().url(),
+              onPressed: () => OpenLink().github(),
               icon: const Icon(
                 FontAwesomeIcons.github,
               ),

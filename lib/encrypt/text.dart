@@ -1,8 +1,9 @@
+import 'dart:convert';
 import 'dart:io';
 
-import 'package:encriptar/service/alert.dart';
-import 'package:encriptar/service/crypto.dart';
-import 'package:encrypt/encrypt.dart';
+import 'package:app/model/index.dart';
+import 'package:app/service/alert.dart';
+import 'package:app/service/crypto.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:get/get.dart';
@@ -17,41 +18,51 @@ class EncryptText extends StatefulWidget {
 }
 
 class _EncryptTextState extends State<EncryptText> {
-  TextEditingController texto = TextEditingController();
-  TextEditingController senha = TextEditingController();
+  TextEditingController text = TextEditingController();
+  TextEditingController password = TextEditingController();
 
-  RxString hash = ''.obs;
-  final Rx<File?> file = Rx<File?>(null);
+  Rx<ModelInfo> modelInfo = ModelInfo().obs;
 
-  void encriptar() async {
-    if (texto.text == '') {
-      Alert().show('texto_vazio', 'texto_vazio_info');
+  ModelInfo get model => modelInfo.value;
+
+  void encrypt() async {
+    if (text.text == '') {
+      Alert().show('empty_text', 'empty_text_info');
       return;
     }
-    if (senha.text == '') {
-      Alert().show('senha_vazia', 'senha_vazia_info');
+    if (password.text == '') {
+      Alert().show('empty_password', 'empty_password_info');
       return;
     }
 
     Alert().loading();
     await Future.delayed(const Duration(microseconds: 500));
 
-    Encrypted? info = await CryptoAes().aes128Encode(texto.text, senha.text);
+    try {
+      List<int> bytes = utf8.encode(text.text);
+      Uint8List uint8list = Uint8List.fromList(bytes);
+
+      modelInfo.value.encrypted = await CryptoApp().encryptText(
+        password.text,
+        uint8list,
+      );
+      modelInfo.value.text = true;
+      // ignore: empty_catches
+    } catch (e) {}
+    modelInfo.refresh();
+
     Get.back();
-    if (info != null) {
-      hash.value = info.base64;
-      hash.refresh();
-    } else {
+    if (modelInfo.value.encrypted == null) {
       Alert().show(
-        'erro_criptografar',
-        'erro_criptografar_info',
+        'error_encrypt',
+        'error_encrypt_info',
       );
     }
   }
 
   copy() {
-    Clipboard.setData(ClipboardData(text: hash.value));
-    Alert().snackBar('hash_copiada', 'hash_copiada_info');
+    Clipboard.setData(ClipboardData(text: model.encrypted!.base64));
+    Alert().snackBar('hash_copied', 'hash_copied_info');
   }
 
   saveFile() async {
@@ -62,26 +73,32 @@ class _EncryptTextState extends State<EncryptText> {
       final directory = await getApplicationDocumentsDirectory();
 
       // Crie um arquivo no diretório de documentos com o nome "texto.txt"
-      file.value = File('${directory.path}/$nameFile');
+      var file = File('${directory.path}/$nameFile');
 
       // Escreva o texto no arquivo
-      await file.value!.writeAsString(hash.value);
 
-      file.refresh();
+      final encodedExtension = CryptoApp().encodeExtencion('txt');
 
-      hash.refresh();
+      Uint8List bytesToWrite = Uint8List.fromList([
+        ...encodedExtension,
+        ...model.encrypted!.bytes,
+      ]);
+      file.writeAsBytesSync(bytesToWrite);
+
+      modelInfo.value.saveFile = file;
+      modelInfo.refresh();
     } catch (e) {
       Alert().show(
-        'salvar_texto',
-        'salvar_texto_info',
+        'save_text',
+        'save_text_info',
       );
     }
   }
 
   share() async {
     await Share.shareXFiles(
-      [XFile(file.value!.path)],
-      text: getNameFile(file.value!.path),
+      [XFile(model.saveFile!.path)],
+      text: getNameFile(model.saveFile!.path),
     );
   }
 
@@ -110,18 +127,18 @@ class _EncryptTextState extends State<EncryptText> {
                   child: Padding(
                     padding: const EdgeInsets.all(8.0),
                     child: TextField(
-                      controller: texto,
+                      controller: text,
                       maxLines: 4,
                       keyboardType: TextInputType.multiline,
                       decoration: InputDecoration(
-                        hintText: 'digite_texto'.tr,
+                        hintText: 'enter_text'.tr,
                         border: InputBorder.none,
                       ),
                       onChanged: (e) => {
-                        if (hash.value != '')
+                        if (model.encrypted != null)
                           {
-                            hash.value = '',
-                            hash.refresh(),
+                            modelInfo.value = ModelInfo(),
+                            modelInfo.refresh(),
                           }
                       },
                     ),
@@ -129,7 +146,7 @@ class _EncryptTextState extends State<EncryptText> {
                 ),
               ),
             ),
-            if (hash.value == '') ...[
+            if (model.encrypted == null) ...[
               Padding(
                 padding: const EdgeInsets.all(8.0),
                 child: Card(
@@ -147,11 +164,11 @@ class _EncryptTextState extends State<EncryptText> {
                     child: Padding(
                       padding: const EdgeInsets.all(8.0),
                       child: TextField(
-                        controller: senha,
+                        controller: password,
                         maxLines: 1,
                         keyboardType: TextInputType.text,
                         decoration: InputDecoration(
-                          hintText: 'digite_senha'.tr,
+                          hintText: 'enter_password'.tr,
                           border: InputBorder.none,
                         ),
                       ),
@@ -164,13 +181,13 @@ class _EncryptTextState extends State<EncryptText> {
                 child: SizedBox(
                   width: double.infinity,
                   child: ElevatedButton(
-                    onPressed: encriptar,
-                    child: Text('criptografar'.tr),
+                    onPressed: encrypt,
+                    child: Text('encrypt'.tr),
                   ),
                 ),
               ),
             ],
-            if (hash.value != '') ...[
+            if (model.encrypted != null) ...[
               Card(
                 child: SizedBox(
                   width: double.infinity,
@@ -181,7 +198,11 @@ class _EncryptTextState extends State<EncryptText> {
                         child: Center(
                           child: Padding(
                             padding: const EdgeInsets.all(8.0),
-                            child: Text(hash.value),
+                            child: Text(
+                              model.encrypted!.base64,
+                              maxLines: 5,
+                              overflow: TextOverflow.fade,
+                            ),
                           ),
                         ),
                       ),
@@ -189,22 +210,22 @@ class _EncryptTextState extends State<EncryptText> {
                         padding: const EdgeInsets.all(8.0),
                         child: ElevatedButton(
                           onPressed: copy,
-                          child: Text('copiar'.tr),
+                          child: Text('copy'.tr),
                         ),
                       ),
-                      if (file.value == null) ...[
+                      if (model.saveFile == null) ...[
                         Padding(
                           padding: const EdgeInsets.all(8.0),
                           child: SizedBox(
                             width: double.infinity,
                             child: ElevatedButton(
                               onPressed: saveFile,
-                              child: Text('armazenar_em_arquivo'.tr),
+                              child: Text('store_in_file'.tr),
                             ),
                           ),
                         ),
                       ],
-                      if (file.value != null) ...[
+                      if (model.saveFile != null) ...[
                         Padding(
                           padding: const EdgeInsets.all(8.0),
                           child: Card(
@@ -228,7 +249,7 @@ class _EncryptTextState extends State<EncryptText> {
                                       ),
                                       Expanded(
                                         child: Text(
-                                          getNameFile(file.value!.path),
+                                          getNameFile(model.saveFile!.path),
                                           maxLines: 1,
                                           overflow: TextOverflow.fade,
                                         ),

@@ -1,5 +1,5 @@
-import 'package:encriptar/service/openlinkd.dart';
-import 'package:encriptar/service/translate.dart';
+import 'package:app/service/openlinkd.dart';
+import 'package:app/service/translate.dart';
 import 'package:flutter/material.dart';
 import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 import 'package:get/get.dart';
@@ -13,13 +13,13 @@ class InfoPage extends StatefulWidget {
 
 class _InfoPageState extends State<InfoPage> {
   var array = [
-    "proposito",
-    'feito_flutter',
-    "funcionalidades",
+    "purpose",
+    'created_flutter',
+    "functionalities",
     "internet",
     "open_source",
-    "responsabilidades",
-    "perda_senha",
+    "responsibilities",
+    "password_loss",
   ];
 
   @override
@@ -27,7 +27,7 @@ class _InfoPageState extends State<InfoPage> {
     return Scaffold(
       appBar: AppBar(
         leading: IconButton(
-          onPressed: () => OpenLink().url(),
+          onPressed: () => OpenLink().github(),
           icon: const Icon(
             FontAwesomeIcons.github,
           ),
@@ -115,6 +115,24 @@ class _InfoPageState extends State<InfoPage> {
                     },
                   ),
                 ],
+              ),
+            ),
+            Card(
+              child: InkWell(
+                onTap: () => OpenLink().terms(),
+                child: SizedBox(
+                  width: double.infinity,
+                  child: Padding(
+                    padding: const EdgeInsets.all(20.0),
+                    child: Center(
+                        child: Text(
+                      'terms'.tr,
+                      style: const TextStyle(
+                        color: Colors.blue,
+                      ),
+                    )),
+                  ),
+                ),
               ),
             ),
           ],

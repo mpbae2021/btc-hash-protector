@@ -1,7 +1,7 @@
-import 'package:encriptar/decrypt/file.dart';
-import 'package:encriptar/decrypt/text.dart';
-import 'package:encriptar/service/openlinkd.dart';
-import 'package:encriptar/service/translate.dart';
+import 'package:app/decrypt/file.dart';
+import 'package:app/decrypt/text.dart';
+import 'package:app/service/openlinkd.dart';
+import 'package:app/service/translate.dart';
 import 'package:flutter/material.dart';
 import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 
@@ -21,7 +21,7 @@ class _DecryptPageState extends State<DecryptPage> {
       child: Scaffold(
           appBar: AppBar(
             leading: IconButton(
-              onPressed: () => OpenLink().url(),
+              onPressed: () => OpenLink().github(),
               icon: const Icon(
                 FontAwesomeIcons.github,
               ),

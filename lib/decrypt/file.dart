@@ -1,11 +1,15 @@
+import 'dart:convert';
 import 'dart:io';
 
-import 'package:encriptar/service/alert.dart';
-import 'package:encriptar/service/crypto.dart';
+import 'package:app/model/index.dart';
+import 'package:app/service/alert.dart';
+import 'package:app/service/crypto.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:get/get.dart';
+import 'package:path_provider/path_provider.dart';
+import 'package:share_plus/share_plus.dart';
 
 class DecryptFile extends StatefulWidget {
   const DecryptFile({super.key});
@@ -15,23 +19,26 @@ class DecryptFile extends StatefulWidget {
 }
 
 class _DecryptFileState extends State<DecryptFile> {
-  final Rx<File?> file = Rx<File?>(null);
-  RxString texto = ''.obs;
+  Rx<ModelInfo> modelInfo = ModelInfo().obs;
+
+  ModelInfo get model => modelInfo.value;
+
   TextEditingController senha = TextEditingController();
+
   getFile() async {
     FilePickerResult? result = await FilePicker.platform.pickFiles();
 
     if (result != null) {
-      file.value = File(result.files.single.path!);
-      file.refresh();
+      modelInfo.value.file = File(result.files.single.path!);
+      modelInfo.refresh();
     } else {
       // User canceled the picker
     }
   }
 
   copy() {
-    Clipboard.setData(ClipboardData(text: texto.value));
-    Alert().snackBar('texto_copiado', 'texto_copiado');
+    Clipboard.setData(ClipboardData(text: model.encrypted!.base64));
+    Alert().snackBar('copied_text', 'copied_text_info');
   }
 
   getNameFile(String path) {
@@ -41,29 +48,76 @@ class _DecryptFileState extends State<DecryptFile> {
     return fileName;
   }
 
-  descriptar() async {
-    if (file.value == null) {
-      Alert().show('Arquivo vazio', 'arquivo_vazio_info');
+  decryptFile() async {
+    if (model.file == null) {
+      Alert().show('empty_file', 'empty_file_info');
       return;
     }
     if (senha.text == '') {
-      Alert().show('senha_vazia', 'senha_vazia_info');
+      Alert().show('empty_password', 'empty_password_info');
       return;
     }
 
     Alert().loading();
     await Future.delayed(const Duration(microseconds: 500));
-    var text = await file.value!.readAsString();
+    Uint8List content;
 
-    String? info = await CryptoAes().aes128Decode(text, senha.text);
+    try {
+      Uint8List bytes = modelInfo.value.file!.readAsBytesSync();
+      modelInfo.value.bytes = true;
+
+      int extLength = bytes[0];
+      String ext = utf8.decode(bytes.sublist(1, extLength + 1));
+
+      modelInfo.value.ext = ext;
+      content = bytes.sublist(extLength + 1);
+    } catch (e) {
+      String hash = modelInfo.value.file!.readAsStringSync();
+      content = base64Decode(hash);
+    }
+
+    modelInfo.value.decrypted = await CryptoApp().decrypt(
+      senha.text,
+      content,
+    );
+
     Get.back();
-    if (info != null) {
-      texto.value = info;
-      texto.refresh();
-    } else {
+
+    if (model.decrypted == null) {
       Alert().show(
-        'erro_descriptografar',
-        'erro_descriptografar_info',
+        'error_decrypt',
+        'error_decrypt_info',
+      );
+    } else {
+      saveFile();
+    }
+  }
+
+  share() async {
+    await Share.shareXFiles(
+      [XFile(model.saveFile!.path)],
+      text: getNameFile(model.file!.path),
+    );
+  }
+
+  saveFile() async {
+    try {
+      var ext = model.ext!.trim();
+
+      var nameFile = '${DateTime.now().millisecondsSinceEpoch}.$ext';
+
+      final directory = await getApplicationDocumentsDirectory();
+
+      var file = File('${directory.path}/$nameFile');
+
+      file.writeAsBytesSync(model.decrypted!);
+
+      modelInfo.value.saveFile = file;
+      modelInfo.refresh();
+    } catch (e) {
+      Alert().show(
+        'save_text',
+        'save_text_info',
       );
     }
   }
@@ -95,9 +149,9 @@ class _DecryptFileState extends State<DecryptFile> {
                           ),
                           Expanded(
                             child: Text(
-                              file.value == null
-                                  ? 'selecionar_arquivo'.tr
-                                  : getNameFile(file.value!.path),
+                              model.file == null
+                                  ? 'select_file'.tr
+                                  : getNameFile(model.file!.path),
                               maxLines: 1,
                               overflow: TextOverflow.fade,
                             ),
@@ -109,7 +163,7 @@ class _DecryptFileState extends State<DecryptFile> {
                 ),
               ),
             ),
-            if (texto.value == '') ...[
+            if (model.decrypted == null) ...[
               Padding(
                 padding: const EdgeInsets.all(8.0),
                 child: Card(
@@ -131,7 +185,7 @@ class _DecryptFileState extends State<DecryptFile> {
                         maxLines: 1,
                         keyboardType: TextInputType.text,
                         decoration: InputDecoration(
-                          hintText: 'digite_senha'.tr,
+                          hintText: 'enter_password'.tr,
                           border: InputBorder.none,
                         ),
                       ),
@@ -142,33 +196,72 @@ class _DecryptFileState extends State<DecryptFile> {
               Padding(
                 padding: const EdgeInsets.all(8.0),
                 child: ElevatedButton(
-                  onPressed: descriptar,
-                  child: Text('descriptografar'.tr),
+                  onPressed: decryptFile,
+                  child: Text('decrypt'.tr),
                 ),
               ),
             ],
-            if (texto.value != '') ...[
+            if (model.decrypted != null) ...[
               Card(
                 child: SizedBox(
                   width: double.infinity,
                   child: Column(
                     children: [
-                      InkWell(
-                        onTap: copy,
-                        child: Center(
-                          child: Padding(
-                            padding: const EdgeInsets.all(8.0),
-                            child: Text(texto.value),
+                      if (model.ext != null) ...[
+                        Padding(
+                          padding: const EdgeInsets.all(8.0),
+                          child: Card(
+                            child: InkWell(
+                              onTap: share,
+                              child: Container(
+                                padding: const EdgeInsets.all(10),
+                                decoration: BoxDecoration(
+                                  borderRadius: BorderRadius.circular(10.0),
+                                  border: Border.all(color: Colors.blue),
+                                ),
+                                child: Padding(
+                                  padding: const EdgeInsets.all(8.0),
+                                  child: Row(
+                                    children: [
+                                      const Icon(
+                                        Icons.file_download_outlined,
+                                      ),
+                                      const SizedBox(
+                                        width: 10.0,
+                                      ),
+                                      Expanded(
+                                        child: Text(
+                                          getNameFile(model.saveFile!.path),
+                                          maxLines: 1,
+                                          overflow: TextOverflow.fade,
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                              ),
+                            ),
                           ),
                         ),
-                      ),
-                      Padding(
-                        padding: const EdgeInsets.all(8.0),
-                        child: ElevatedButton(
-                          onPressed: copy,
-                          child: Text('copiar'.tr),
+                      ],
+                      if (model.ext == null) ...[
+                        InkWell(
+                          onTap: copy,
+                          child: Center(
+                            child: Padding(
+                              padding: const EdgeInsets.all(8.0),
+                              child: Text(utf8.decode(model.decrypted!)),
+                            ),
+                          ),
                         ),
-                      ),
+                        Padding(
+                          padding: const EdgeInsets.all(8.0),
+                          child: ElevatedButton(
+                            onPressed: copy,
+                            child: Text('copy'.tr),
+                          ),
+                        ),
+                      ],
                     ],
                   ),
                 ),

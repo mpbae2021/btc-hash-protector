@@ -1,8 +1,11 @@
+import 'dart:convert';
 import 'dart:io';
+// ignore: depend_on_referenced_packages
+import 'package:path/path.dart' as path;
 
-import 'package:encriptar/service/alert.dart';
-import 'package:encriptar/service/crypto.dart';
-import 'package:encrypt/encrypt.dart';
+import 'package:app/model/index.dart';
+import 'package:app/service/alert.dart';
+import 'package:app/service/crypto.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -18,23 +21,26 @@ class EncryptFile extends StatefulWidget {
 }
 
 class _EncryptFileState extends State<EncryptFile> {
-  final Rx<File?> file = Rx<File?>(null);
-  RxString hash = ''.obs;
-  TextEditingController senha = TextEditingController();
+  TextEditingController password = TextEditingController();
+
+  Rx<ModelInfo> modelInfo = ModelInfo().obs;
+
+  ModelInfo get model => modelInfo.value;
+
   getFile() async {
     FilePickerResult? result = await FilePicker.platform.pickFiles();
 
     if (result != null) {
-      file.value = File(result.files.single.path!);
-      file.refresh();
+      modelInfo.value.file = File(result.files.single.path!);
+      modelInfo.refresh();
     } else {
       // User canceled the picker
     }
   }
 
   copy() {
-    Clipboard.setData(ClipboardData(text: hash.value));
-    Alert().snackBar('hash_copiada', 'hash_copiada_info');
+    Clipboard.setData(ClipboardData(text: model.encrypted!.base64));
+    Alert().snackBar('hash_copied', 'hash_copied_info');
   }
 
   getNameFile(String path) {
@@ -48,54 +54,75 @@ class _EncryptFileState extends State<EncryptFile> {
     try {
       var nameFile = '${DateTime.now().millisecondsSinceEpoch}.aes';
 
-      // Obtenha o diretório de documentos do aplicativo
       final directory = await getApplicationDocumentsDirectory();
 
-      // Crie um arquivo no diretório de documentos com o nome "texto.txt"
-      file.value = File('${directory.path}/$nameFile');
+      var file = File('${directory.path}/$nameFile');
 
-      // Escreva o texto no arquivo
-      await file.value!.writeAsString(hash.value);
+      final encodedExtension = CryptoApp().encodeExtencion(model.ext!);
 
-      file.refresh();
+      Uint8List bytesToWrite = Uint8List.fromList([
+        ...encodedExtension,
+        ...model.encrypted!.bytes,
+      ]);
+      file.writeAsBytesSync(bytesToWrite);
 
-      hash.refresh();
+      modelInfo.value.saveFile = file;
+      modelInfo.refresh();
     } catch (e) {
-      Alert().show('salvar_texto', 'salvar_texto_info');
+      Alert().show(
+        'save_text',
+        'save_text_info',
+      );
     }
   }
 
-  encriptarFile() async {
-    if (file.value == null) {
-      Alert().show('arquivo_vazio', 'arquivo_vazio_info');
+  encryptFile() async {
+    if (model.file == null) {
+      Alert().show('empty_file', 'empty_file_info');
       return;
     }
-    if (senha.text == '') {
-      Alert().show('senha_vazia', 'senha_vazia_info');
+    if (password.text == '') {
+      Alert().show('empty_password', 'empty_password_info');
       return;
     }
 
     Alert().loading();
-    await Future.delayed(const Duration(microseconds: 500));
-    var text = await file.value!.readAsString();
 
-    Encrypted? info = await CryptoAes().aes128Encode(text, senha.text);
+    await Future.delayed(const Duration(microseconds: 1000));
+
+    try {
+      var ext = path.extension(model.file!.path).split('.')[1];
+      Uint8List bytes = model.file!.readAsBytesSync();
+      modelInfo.value.ext = ext.trim();
+      modelInfo.value.encrypted = await CryptoApp().encryptFile(
+        password.text,
+        bytes,
+      );
+    } catch (e) {
+      String text = model.file!.readAsStringSync();
+      List<int> bytes = utf8.encode(text);
+      Uint8List uint8list = Uint8List.fromList(bytes);
+      modelInfo.value.encrypted = await CryptoApp().encryptText(
+        password.text,
+        uint8list,
+      );
+    }
+    saveFile();
+
     Get.back();
-    if (info != null) {
-      hash.value = info.base64;
-      hash.refresh();
-    } else {
+    if (model.encrypted == null) {
       Alert().show(
-        'erro_criptografar',
-        'erro_criptografar_info',
+        'error_encrypt',
+        'error_encrypt_info',
       );
     }
   }
 
   share() async {
+    //return saveFile();
     await Share.shareXFiles(
-      [XFile(file.value!.path)],
-      text: getNameFile(file.value!.path),
+      [XFile(model.saveFile!.path)],
+      text: getNameFile(model.file!.path),
     );
   }
 
@@ -126,9 +153,11 @@ class _EncryptFileState extends State<EncryptFile> {
                           ),
                           Expanded(
                             child: Text(
-                              file.value == null
-                                  ? 'selecionar_arquivo'.tr
-                                  : getNameFile(file.value!.path),
+                              model.file == null
+                                  ? 'select_file'.tr
+                                  : getNameFile(
+                                      model.file!.path,
+                                    ),
                               maxLines: 1,
                               overflow: TextOverflow.fade,
                             ),
@@ -140,7 +169,7 @@ class _EncryptFileState extends State<EncryptFile> {
                 ),
               ),
             ),
-            if (hash.value == '') ...[
+            if (model.encrypted == null) ...[
               Padding(
                 padding: const EdgeInsets.all(8.0),
                 child: Card(
@@ -158,11 +187,11 @@ class _EncryptFileState extends State<EncryptFile> {
                     child: Padding(
                       padding: const EdgeInsets.all(8.0),
                       child: TextField(
-                        controller: senha,
+                        controller: password,
                         maxLines: 1,
                         keyboardType: TextInputType.text,
                         decoration: InputDecoration(
-                          hintText: 'digite_senha'.tr,
+                          hintText: 'enter_password'.tr,
                           border: InputBorder.none,
                         ),
                       ),
@@ -173,46 +202,18 @@ class _EncryptFileState extends State<EncryptFile> {
               Padding(
                 padding: const EdgeInsets.all(8.0),
                 child: ElevatedButton(
-                  onPressed: encriptarFile,
-                  child: Text('criptografar'.tr),
+                  onPressed: encryptFile,
+                  child: Text('encrypt'.tr),
                 ),
               ),
             ],
-            if (hash.value != '') ...[
+            if (model.encrypted != null) ...[
               Card(
                 child: SizedBox(
                   width: double.infinity,
                   child: Column(
                     children: [
-                      InkWell(
-                        onTap: copy,
-                        child: Center(
-                          child: Padding(
-                            padding: const EdgeInsets.all(8.0),
-                            child: Text(hash.value),
-                          ),
-                        ),
-                      ),
-                      Padding(
-                        padding: const EdgeInsets.all(8.0),
-                        child: ElevatedButton(
-                          onPressed: copy,
-                          child: Text('copiar'.tr),
-                        ),
-                      ),
-                      if (file.value == null) ...[
-                        Padding(
-                          padding: const EdgeInsets.all(8.0),
-                          child: SizedBox(
-                            width: double.infinity,
-                            child: ElevatedButton(
-                              onPressed: saveFile,
-                              child: Text('armazenar_em_arquivo'.tr),
-                            ),
-                          ),
-                        ),
-                      ],
-                      if (file.value != null) ...[
+                      if (model.saveFile != null) ...[
                         Padding(
                           padding: const EdgeInsets.all(8.0),
                           child: Card(
@@ -236,7 +237,7 @@ class _EncryptFileState extends State<EncryptFile> {
                                       ),
                                       Expanded(
                                         child: Text(
-                                          getNameFile(file.value!.path),
+                                          getNameFile(model.saveFile!.path),
                                           maxLines: 1,
                                           overflow: TextOverflow.fade,
                                         ),
